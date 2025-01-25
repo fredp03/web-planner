@@ -1,3 +1,21 @@
 #taskList {
-  /* Placeholder for future styles */
+    list-style: none;
+    padding: 0;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.task-text {
+    flex-grow: 1;
+}
+
+.task-done .task-text {
+    text-decoration: line-through;
+    opacity: 0.7;
 }

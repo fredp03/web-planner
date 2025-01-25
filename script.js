@@ -8,6 +8,50 @@ let lastSubmittedValue = "";
 // Load existing tasks when page loads
 window.addEventListener('DOMContentLoaded', loadTasks);
 
+function createTaskElement(taskText, done, recordId) {
+    const li = document.createElement("li");
+    li.className = "task-item";
+    if (done) li.classList.add("task-done");
+    
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = done;
+    
+    const span = document.createElement("span");
+    span.className = "task-text";
+    span.textContent = taskText;
+    
+    li.appendChild(checkbox);
+    li.appendChild(span);
+    
+    // Add event listeners
+    li.addEventListener('dblclick', () => toggleTaskStatus(li, recordId));
+    checkbox.addEventListener('change', () => toggleTaskStatus(li, recordId));
+    
+    return li;
+}
+
+function toggleTaskStatus(li, recordId) {
+    const isDone = !li.classList.contains("task-done");
+    li.classList.toggle("task-done");
+    li.querySelector('input[type="checkbox"]').checked = isDone;
+    
+    // Update Airtable
+    fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${recordId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${AIRTABLE_TOKEN}`
+        },
+        body: JSON.stringify({
+            fields: {
+                "done": isDone
+            }
+        })
+    })
+    .catch(err => console.error("Error updating task status:", err));
+}
+
 function loadTasks() {
     fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201`, {
         headers: {
@@ -24,8 +68,11 @@ function loadTasks() {
         taskList.innerHTML = ''; // Clear existing items
         data.records.forEach(record => {
             if (!record.fields.deleted) {
-                const li = document.createElement("li");
-                li.textContent = record.fields["user-text"];
+                const li = createTaskElement(
+                    record.fields["user-text"],
+                    record.fields.done || false,
+                    record.id
+                );
                 taskList.appendChild(li);
             }
         });
@@ -83,8 +130,8 @@ function addTask(taskText) {
     .then(data => {
         console.log('Added Data:', data);
         const taskList = document.getElementById("taskList");
-        const li = document.createElement("li");
-        li.textContent = taskText;
+        const record = data.records[0];
+        const li = createTaskElement(taskText, false, record.id);
         taskList.appendChild(li);
     })
     .catch(err => {
