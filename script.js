@@ -142,18 +142,22 @@ document.getElementById("taskInput").addEventListener("blur", function(event) {
 });
 
 document.getElementById("todoForm").addEventListener("submit", function(event) {
-  event.preventDefault();
-  const taskInput = document.getElementById("taskInput");
-  const taskText = taskInput.value.trim();
-  if (taskText && taskText !== lastSubmittedValue) {
-    addTask(taskText);
-    lastSubmittedValue = taskText;
-    taskInput.value = "";
-    // Hide the input form after adding task
-    document.querySelector('.new-to-do-input').classList.remove('active');
-    document.getElementById('todoForm').classList.remove('active');
-    document.getElementById('taskList').classList.remove('input-active');
-  }
+    event.preventDefault();
+    const taskInput = document.getElementById("taskInput");
+    const taskText = taskInput.value.trim();
+    if (taskText && taskText !== lastSubmittedValue) {
+        // Hide the input form before adding task
+        document.querySelector('.new-to-do-input').classList.remove('active');
+        document.getElementById('todoForm').classList.remove('active');
+        document.getElementById('taskList').classList.remove('input-active');
+        
+        // Small delay before adding the new task
+        setTimeout(() => {
+            addTask(taskText);
+            lastSubmittedValue = taskText;
+            taskInput.value = "";
+        }, 50);
+    }
 });
 
 function addTask(taskText) {
@@ -186,8 +190,17 @@ function addTask(taskText) {
         const taskList = document.getElementById("taskList");
         const record = data.records[0];
         const li = createTaskElement(taskText, false, record.id);
-        // Insert new task at the beginning of the list
+        
+        // Add new animation classes
+        li.classList.add('new-item');
         taskList.insertBefore(li, taskList.firstChild);
+        
+        // Trigger the animation after a brief delay
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                li.classList.add('show');
+            });
+        });
     })
     .catch(err => {
         console.error("Error adding task:", err);
@@ -197,6 +210,9 @@ function addTask(taskText) {
 
 // Replace the existing delete function with this new one
 function deleteCompletedTasks() {
+    const bin = document.getElementById('deleteAllBtn');
+    const binRect = bin.getBoundingClientRect();
+    
     fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201`, {
         headers: {
             "Authorization": `Bearer ${AIRTABLE_TOKEN}`
@@ -204,23 +220,47 @@ function deleteCompletedTasks() {
     })
     .then(response => response.json())
     .then(data => {
-        // Filter only completed tasks
         const completedRecords = data.records.filter(record => record.fields.done === true);
+        const completedTasks = document.querySelectorAll('.task-item.task-done');
+        const remainingTasks = document.querySelectorAll('.task-item:not(.task-done)');
         
-        const deletePromises = completedRecords.map(record => 
+        // Mark remaining tasks
+        remainingTasks.forEach(task => task.classList.add('remaining'));
+        
+        // Add animation before deletion with slight delay between each item
+        const animationPromises = Array.from(completedTasks).map((task, index) => {
+            return new Promise(resolve => {
+                task.classList.add('deleting');
+                task.addEventListener('animationend', () => {
+                    task.remove();
+                    resolve();
+                }, { once: true });
+            });
+        });
+
+        return Promise.all([
+            Promise.all(animationPromises),
+            completedRecords
+        ]);
+    })
+    .then(([_, completedRecords]) => {
+        // Delete from Airtable after animations complete
+        return Promise.all(completedRecords.map(record => 
             fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${record.id}`, {
                 method: 'DELETE',
                 headers: {
                     "Authorization": `Bearer ${AIRTABLE_TOKEN}`
                 }
             })
-        );
-        return Promise.all(deletePromises);
+        ));
     })
     .then(() => {
-        // Remove completed tasks from DOM
-        const completedTasks = document.querySelectorAll('.task-item.task-done');
-        completedTasks.forEach(task => task.remove());
+        // Remove the remaining class after a delay
+        setTimeout(() => {
+            document.querySelectorAll('.task-item.remaining').forEach(task => {
+                task.classList.remove('remaining');
+            });
+        }, 500);
     })
     .catch(err => {
         console.error("Error deleting completed tasks:", err);
