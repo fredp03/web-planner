@@ -13,43 +13,95 @@ function createTaskElement(taskText, done, recordId) {
     li.className = "task-item";
     if (done) li.classList.add("task-done");
     
+    const wrapper = document.createElement("div");
+    wrapper.className = "div-wrapper";
+    
+    const checkboxWrapper = document.createElement("div");
+    checkboxWrapper.className = "checkbox-wrapper";
+    
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = done;
+    
+    const checkboxIcon = document.createElement("span");
+    checkboxIcon.className = "checkbox-icon";
     
     const span = document.createElement("span");
     span.className = "task-text";
     span.textContent = taskText;
     
-    li.appendChild(checkbox);
-    li.appendChild(span);
+    checkboxWrapper.appendChild(checkbox);
+    checkboxWrapper.appendChild(checkboxIcon);
     
-    // Add event listeners
-    li.addEventListener('dblclick', () => toggleTaskStatus(li, recordId));
-    checkbox.addEventListener('change', () => toggleTaskStatus(li, recordId));
+    wrapper.appendChild(checkboxWrapper);
+    wrapper.appendChild(span);
+    li.appendChild(wrapper);
+    
+    // Update checkbox event listener to be more direct
+    checkbox.addEventListener('change', function() {
+        const isDone = this.checked;
+        li.classList.toggle("task-done", isDone);
+        
+        fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${recordId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${AIRTABLE_TOKEN}`
+            },
+            body: JSON.stringify({
+                fields: {
+                    "done": isDone
+                }
+            })
+        })
+        .catch(err => console.error("Error updating task status:", err));
+    });
+
+    // Keep the existing event listeners
+    span.addEventListener('dblclick', (e) => {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = span.textContent;
+        input.className = "edit-input";
+        
+        input.addEventListener('blur', () => updateTaskText(input, span, recordId));
+        input.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                input.blur();
+            }
+            if (e.key === 'Escape') {
+                wrapper.replaceChild(span, input);
+            }
+        });
+        
+        wrapper.replaceChild(input, span);
+        input.focus();
+    });
     
     return li;
 }
 
-function toggleTaskStatus(li, recordId) {
-    const isDone = !li.classList.contains("task-done");
-    li.classList.toggle("task-done");
-    li.querySelector('input[type="checkbox"]').checked = isDone;
-    
-    // Update Airtable
-    fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${recordId}`, {
-        method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${AIRTABLE_TOKEN}`
-        },
-        body: JSON.stringify({
-            fields: {
-                "done": isDone
-            }
+function updateTaskText(input, span, recordId) {
+    const newText = input.value.trim();
+    if (newText && newText !== span.textContent) {
+        fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${recordId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${AIRTABLE_TOKEN}`
+            },
+            body: JSON.stringify({
+                fields: {
+                    "user-text": newText
+                }
+            })
         })
-    })
-    .catch(err => console.error("Error updating task status:", err));
+        .then(() => {
+            span.textContent = newText;
+        })
+        .catch(err => console.error("Error updating task text:", err));
+    }
+    span.parentNode.replaceChild(span, input);
 }
 
 function loadTasks() {
@@ -58,15 +110,13 @@ function loadTasks() {
             "Authorization": `Bearer ${AIRTABLE_TOKEN}`
         }
     })
-    .then(response => {
-        console.log('Load Response:', response);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         console.log('Loaded Data:', data);
         const taskList = document.getElementById("taskList");
-        taskList.innerHTML = ''; // Clear existing items
-        data.records.forEach(record => {
+        taskList.innerHTML = '';
+        // Reverse the array to show newest first
+        data.records.reverse().forEach(record => {
             if (!record.fields.deleted) {
                 const li = createTaskElement(
                     record.fields["user-text"],
@@ -98,8 +148,12 @@ document.getElementById("todoForm").addEventListener("submit", function(event) {
   if (taskText && taskText !== lastSubmittedValue) {
     addTask(taskText);
     lastSubmittedValue = taskText;
+    taskInput.value = "";
+    // Hide the input form after adding task
+    document.querySelector('.new-to-do-input').classList.remove('active');
+    document.getElementById('todoForm').classList.remove('active');
+    document.getElementById('taskList').classList.remove('input-active');
   }
-  taskInput.value = "";
 });
 
 function addTask(taskText) {
@@ -132,12 +186,67 @@ function addTask(taskText) {
         const taskList = document.getElementById("taskList");
         const record = data.records[0];
         const li = createTaskElement(taskText, false, record.id);
-        taskList.appendChild(li);
+        // Insert new task at the beginning of the list
+        taskList.insertBefore(li, taskList.firstChild);
     })
     .catch(err => {
         console.error("Error adding task:", err);
         alert("Error adding task. Check console for details.");
     });
 }
+
+// Replace the existing delete function with this new one
+function deleteCompletedTasks() {
+    fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201`, {
+        headers: {
+            "Authorization": `Bearer ${AIRTABLE_TOKEN}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Filter only completed tasks
+        const completedRecords = data.records.filter(record => record.fields.done === true);
+        
+        const deletePromises = completedRecords.map(record => 
+            fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Table%201/${record.id}`, {
+                method: 'DELETE',
+                headers: {
+                    "Authorization": `Bearer ${AIRTABLE_TOKEN}`
+                }
+            })
+        );
+        return Promise.all(deletePromises);
+    })
+    .then(() => {
+        // Remove completed tasks from DOM
+        const completedTasks = document.querySelectorAll('.task-item.task-done');
+        completedTasks.forEach(task => task.remove());
+    })
+    .catch(err => {
+        console.error("Error deleting completed tasks:", err);
+        alert("Error deleting completed tasks. Check console for details.");
+    });
+}
+
+// Update the delete button event listener
+document.getElementById("deleteAllBtn").addEventListener("click", deleteCompletedTasks);
+
+// Replace the existing add button click handler with this:
+document.querySelector('.add-button').addEventListener('click', function(e) {
+    const form = document.querySelector('.new-to-do-input');
+    const todoForm = document.getElementById('todoForm');
+    const taskList = document.getElementById('taskList');
+    
+    if (!form.classList.contains('active')) {
+        form.classList.add('active');
+        todoForm.classList.add('active');
+        taskList.classList.add('input-active');
+        document.getElementById('taskInput').focus();
+    } else {
+        form.classList.remove('active');
+        todoForm.classList.remove('active');
+        taskList.classList.remove('input-active');
+    }
+});
 
 // ...existing code...

@@ -1,0 +1,83 @@
+.frame {
+    background-color: transparent;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+}
+
+.frame .div {
+    width: 619px;
+    height: 280px;
+    position: relative;
+}
+
+.frame .new-to-do-input {
+    top: 68px;
+    position: absolute;
+    width: 583px;
+    height: 41px;
+    left: 18px;
+    background-color: #ffffff;
+    border-radius: 65px;
+    box-shadow: 0px 4px 13.1px #0000001f;
+}
+
+.frame .div-wrapper {
+    display: flex;
+    width: 583px;
+    height: 41px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 29px;
+    position: relative;
+}
+
+.frame .user-input {
+    position: relative;
+    width: fit-content;
+    font-family: "Inter-Regular", Helvetica;
+    font-weight: 400;
+    color: #0000009e;
+    font-size: 12px;
+    letter-spacing: 0;
+    line-height: normal;
+}
+
+.frame .new-to-do-box {
+    top: 183px;
+    position: absolute;
+    width: 583px;
+    height: 41px;
+    left: 18px;
+    background-color: #ffffff;
+    border-radius: 65px;
+    box-shadow: 0px 4px 13.1px #0000001f;
+}
+
+.frame .user-text {
+    position: relative;
+    width: fit-content;
+    font-family: "Inter-Regular", Helvetica;
+    font-weight: 400;
+    color: #000000;
+    font-size: 12px;
+    letter-spacing: 0;
+    line-height: normal;
+}
+
+.frame .delete-button {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    top: 18px;
+    left: 577px;
+}
+
+.frame .add-button {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    top: 18px;
+    left: 18px;
+}
